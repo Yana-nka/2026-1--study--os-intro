@@ -1,0 +1,214 @@
+---
+## Author
+author:
+  name: Кулаженкова Яна Сергеевна
+  degrees: DSc
+  orcid: 0000-0002-0877-7063
+  email: kulyabov-ds@rudn.ru
+  affiliation:
+    - name: Российский университет дружбы народов
+      country: Российская Федерация
+      postal-code: 117198
+      city: Москва
+      address: ул. Миклухо-Маклая, д. 6
+## Title
+title: Развёртывание и настройка дистрибутива Fedora 41 в WSL
+subtitle: Лабораторная работа
+license: CC BY
+date: today
+date-format: "YYYY-MM-DD"
+
+---
+
+# Вводная часть
+
+## Актуальность
+
+- Технология WSL (Windows Subsystem for Linux) позволяет разработчикам и исследователям использовать инструментарий Linux непосредственно в среде Windows
+- Возможность быстрого развёртывания «чистых» окружений (контейнеров) необходима для тестирования, изоляции проектов и изучения различных дистрибутивов
+- Использование WSL экономит ресурсы по сравнению с полной виртуализацией
+
+## Объект и предмет исследования
+
+- **Объект:** Дистрибутив Fedora 41, предназначенный для запуска в среде WSL
+- **Предмет:** Процесс импорта, первичной настройки и установки базового программного обеспечения в окружение Fedora 41 под управлением WSL
+
+## Цели и задачи
+
+- Импортировать дистрибутив Fedora 41 в WSL
+- Выполнить первичную настройку системы: обновление пакетов, создание пользователя
+- Установить дополнительное программное обеспечение для работы в системе (Midnight Commander, pandoc, dkms и др.)
+- Проанализировать возникающие ошибки и особенности работы с системой (права доступа, нехватка места)
+
+## Материалы и методы
+
+- **Аппаратная платформа:** x86_64 (ПК с ОС Windows)
+- **Программное обеспечение:**
+    - WSL (Windows Subsystem for Linux) версии 2
+    - Дистрибутив Fedora 41 (образ `fedora-41.tar`)
+    - Пакетный менеджер `dnf`
+    - Утилиты: `tar`, `git`, `mc`, `pandoc`, `dkms` и др.
+
+# Ход работы
+
+## Импорт дистрибутива Fedora 41 в WSL
+
+- Первоначальная попытка импорта (файл `л10.png`) выполнена с помощью команды `wsl --import` из подготовленного tar-архива
+- Образ был успешно импортирован, и дистрибутив появился в списке WSL (`wsl -l -v`)
+- Запуск от имени root позволил приступить к настройке
+
+```powershell
+PS C:\WSL\fedora41> wsl --import Fedora41 . .\fedora-wsl.tar.gz --version 2
+PS C:\WSL\fedora41> wsl -l -v
+NAME      STATE    VERSION
+Fedora41   Stopped    2
+
+```markdown
+## Первичная настройка и создание пользователя
+
+- В запущенном экземпляре Fedora выполнено обновление баз данных пакетов и самой системы: `dnf update -y`
+- Создан непривилегированный пользователь `yskulazhenkova` для дальнейшей работы:
+    - `useradd -m -G wheel -s /bin/bash yskulazhenkova`
+    - Установлен пароль для нового пользователя (`passwd`)
+- В ходе установки пароля зафиксирована ошибка отсутствия словаря `cracklib`, что не помешало смене пароля
+
+```bash
+[root@0WL fedora41]# useradd -m -G wheel -s /bin/bash yskulazhenkova
+[root@0WL fedora41]# passwd yskulazhenkova
+New password:
+/usr/share/cracklib/pw_dict.pwd.gz: No such file or directory
+BAD PASSWORD: The password fails the dictionary check - error loading dictionary
+Retype new password:
+passwd: password updated successfully
+```
+
+## Работа с файловой системой и правами доступа
+
+- Образ Fedora (`fedora-41.tar`) был распакован в директорию `fedora-rootfs` обычным пользователем
+- При попытке создания tar-архива для WSL из распакованной файловой системы возникла ошибка прав доступа
+
+```bash
+defin@OWL: $ tar -czf ~/fedora-wsl.tar.gz -C fedora-rootfs .
+tar: ./etc/shadow: Cannot open: Permission denied
+tar: ./etc/shadow: Cannot open: Permission denied
+```
+
+## Решение проблемы с правами доступа
+
+- **Причина ошибки:** файлы конфигурации (`/etc/shadow`, `/etc/gshadow`) принадлежат root и недоступны для чтения обычному пользователю
+- **Решение:** использование `sudo` для создания архива
+
+```bash
+delfin@OWL:~$ sudo tar -czf ~/fedora-wsl.tar.gz -C fedora-rootfs .
+[sudo] password for delfin:
+delfin@OWL:~$ ls -la ~/fedora-wsl.tar.gz
+-rw-r--r-- 1 delfin delfin 172368461 Mar 4 00:14 /home/delfin/fedora-wsl.tar.gz
+delfin@OWL:~$ cp ~/fedora-wsl.tar.gz /mnt/c/WSL/fedora41/
+```
+
+## Установка базового программного обеспечения
+
+- Проверено наличие предустановленных пакетов (`git`, `patch`)
+- Установлен пакет `dkms` (Dynamic Kernel Module Support) и зависимости
+
+```bash
+[root@bgoqrcnyto ~]# dnf -y install dkms
+Package "dkms-3.3.0-1.fc41.noarch" is already installed.
+Installing dependencies: kernel-devel-matched
+[1/2] dkms-0:3.3.0-1.fc41.noarch             100% | 1.2 MiB/s | 89.3 KiB | 00m00s
+[2/2] kernel-devel-matched-0:6.17.10-100.fc41.x86_64  100% | 2.5 MiB/s | 220.9 KiB | 00m00s
+```
+
+## Установка Midnight Commander
+
+- Установлен файловый менеджер `mc` и зависимость `slang`
+
+```bash
+[root@bgoqrcnyto ~]# dnf -y install mc
+Installing: mc x86_64 1:4.8.32-1.fc41    7.2 MiB
+Installing dependencies: slang x86_64 2.3.3-6.fc41    1.4 MiB
+[1/2] slang-0:2.3.3-6.fc41.x86_64        100% | 4.3 MiB/s | 417.7 KiB | 00m00s
+[2/2] mc-1:4.8.32-1.fc41.x86_64          100% | 13.9 MiB/s | 1.9 MiB | 00m00s
+Complete!
+```
+
+## Конфигурирование системы
+
+- После установки `mc` выполнено обновление системы (`dnf -y update`), которое не выявило новых обновлений
+- Изменена конфигурация SELinux для упрощения отладки (перевод в permissive mode)
+
+```bash
+[root@bgoqrcnyto ~]# sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+[root@bgoqrcnyto ~]# systemctl reboot
+```
+
+## Настройка окружения рабочего стола
+
+- Выполнена настройка клавиатуры для окружения Sway (оконный менеджер Wayland)
+- Создан конфигурационный файл с командой для `localectl-xkb-config`
+
+```bash
+root@bgoqcrnyto:~/work/scripts# mkdir -p ~/.config/sway/config.d/
+root@bgoqcrnyto:~/work/scripts# echo "exec_always /usr/libexec/sway-systemd/localectl-xkb-config --oneshot" > ~/.config/sway/config.d/95-system-keyboard-config.conf
+```
+
+## Установка Pandoc
+
+- Установлен мощный конвертер документов `pandoc` и его общая библиотека `pandoc-common`
+
+```bash
+[root@bgoqrcnyto:~/]# dnf -y install pandoc
+Installing: pandoc x86_64 3.1.11.1-34.fc41    191.1 MiB
+Installing dependencies: pandoc-common noarch 3.1.11.1-34.fc41    1.9 MiB
+[1/2] pandoc-common-0:3.1.11.1-34.fc41.noarch    100% | 4.4 MiB/s | 536.7 KiB | 00m00s
+[2/2] pandoc-0:3.1.11.1-34.fc41.x86_64           100% | 67.1 MiB/s | 27.2 MiB | 00m00s
+Complete!
+```
+
+## Возникновение ошибки нехватки места
+
+- В процессе установки большого количества пакетов возникла критическая ошибка: **нехватка свободного места на корневой файловой системе**
+
+```bash
+- installing package evince-djvu-46.3.1-2.fc41.x86_64 needs 3169MB more space on the / filesystem
+- installing package tracker-miners-3.7.4-2.fc41.x86_64 needs 3174MB more space on the / filesystem
+- installing package mesa-vulkan-drivers-25.0.7-3.fc41.x86_64 needs 3226MB more space on the / filesystem
+- installing package rubygem-bridgeemail-3.1.5-1.fc41.x86_64 needs 3320MB more space on the / filesystem
+```
+
+## Информация о версии ядра
+
+- Получена информация о версии ядра Fedora
+
+```bash
+[root@bgoqrcnyto ~]# dmesg | grep -i "linux version"
+[0.000000] Linux version 6.17.10-100.fc41.x86_64 (gcc (GCC) 14.3.1 20251022) #1 SMP PREEMPT_DYNAMIC Mon Dec 16:10:21 UTC 2025
+```
+
+## Попытка диагностики
+
+- На фоне ошибок нехватки места были предприняты попытки диагностики системы с помощью пакетного менеджера `dpkg` (характерного для Debian-систем)
+- Множественное повторение команд `dpkg` свидетельствует о возможном переключении в другой экземпляр дистрибутива (Ubuntu)
+
+```bash
+root@bgoqcrnyto ~]# dpkg --print-architecture
+amd64
+root@bgoqcrnyto:~/home/ubuntu$ dpkg --info debian-buster-backports
+Debian 12 (buster) Release amd64
+```
+
+# Результаты
+
+## Основные результаты работы
+
+- **Дистрибутив развёрнут:** Fedora 41 успешно импортирована и запущена в среде WSL2
+- **Пользователь создан:** Добавлен непривилегированный пользователь для повседневной работы
+- **Базовое ПО установлено:** Установлены и опробованы в работе `mc`, `tmux`, `git`, `dkms`, `pandoc`
+- **Выявлена проблема:** Основным ограничивающим фактором при развёртывании «толстых» окружений в WSL является размер виртуального диска. Попытка установки графических приложений и их зависимостей привела к исчерпанию места
+- **Проведена диагностика:** Выявлено, что для комфортной работы с Fedora 41 в WSL, особенно с графическими приложениями, необходимо либо изначально выделять больше места под дистрибутив, либо подключать внешние носители/диски
+
+## Итоговый слайд
+
+- В ходе работы был создан и настроен дистрибутив Fedora 41 под управлением WSL
+- Ключевой вывод: для сложных окружений с графическими пакетами необходимо заранее позаботиться об увеличении доступного дискового пространства виртуальной машины WSL
+```
