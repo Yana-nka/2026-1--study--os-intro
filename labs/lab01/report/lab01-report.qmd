@@ -1,10 +1,10 @@
 ---
 ## Author
 author:
-  name: [Ваше Имя и Фамилия]
+  name: Кулаженкова Яна Сергеевна
   degrees: 
   orcid: 
-  email: [Ваш email]
+  email: 1032253497@rudn.ru
   affiliation:
     - name: Российский университет дружбы народов
       country: Российская Федерация
